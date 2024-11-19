@@ -7,42 +7,36 @@ const cron = require('node-cron');
 const enableCors = cors({ origin: '*' });
 
 // In-memory URL list
-const urlList = new Set(); // Using a Set to prevent duplicate URLs
+const urlList = [];
 
 // Function to scrape a website
 async function scrapeWebsite(url) {
     try {
-        // Validate URL format
-        if (!/^https?:\/\/.+$/.test(url)) {
-            console.error(`Invalid URL: ${url}`);
-            return;
-        }
-
         // Fetch the HTML of the provided website
         const { data } = await axios.get(url);
 
-        // Load the HTML using cheerio for parsing
+        // Optionally, load the HTML using cheerio for parsing/manipulating the HTML
         const $ = cheerio.load(data);
 
         // Extract the title of the page as an example
-        const pageTitle = $('title').text() || 'No Title Found';
+        const pageTitle = $('title').text();
 
         // Prepare email content
         const toEmail = 'litnitimounsef@gmail.com'; // Replace with actual recipient email
-        const subject = `Scraped Data: ${pageTitle}`;
-        const message = `
+        const subject = 'Scraped Data';
+        const message = 
             <h1>${pageTitle}</h1>
-            <p>Scraped HTML content snippet:</p>
-            <pre>${data.substring(0, 1000)}...</pre>
-        `;
+            <p>Scraped HTML content:</p>
+            <pre>${data}</pre>
+        ;
         const isHtml = true;
 
         // Send the email
         await sendEmail(toEmail, subject, message, isHtml);
 
-        console.log(`Scraping successful for URL: ${url}`);
+        console.log(Scraping successful for URL: ${url});
     } catch (error) {
-        console.error(`Error scraping URL (${url}):`, error.message);
+        console.error('Error fetching the URL:', error.message);
     }
 }
 
@@ -53,17 +47,17 @@ async function sendEmail(toEmail, subject, message, isHtml) {
             to: toEmail,
             subject: subject,
             message: message,
-            isHtml: isHtml,
+            isHtml: isHtml
         }, {
             headers: {
-                'Content-Type': 'application/json',
-            },
+                'Content-Type': 'application/json'
+            }
         });
 
         if (response.status === 200) {
             console.log('Email sent successfully!');
         } else {
-            console.error('Failed to send email:', response.data);
+            console.log('Failed to send email:', response.data.error);
         }
     } catch (error) {
         console.error('Error sending email:', error.message);
@@ -78,16 +72,12 @@ async function handleRequest(req, res) {
         return res.status(400).json({ message: 'Please provide a valid URL as a query parameter (e.g., ?url=https://example.com)' });
     }
 
-    if (urlList.has(websiteUrl)) {
-        return res.status(409).json({ message: 'URL is already in the list.', url: websiteUrl });
-    }
-
     // Add the URL to the list
-    urlList.add(websiteUrl);
+    urlList.push(websiteUrl);
 
     res.status(200).json({
         message: 'URL added successfully!',
-        url: websiteUrl,
+        url: websiteUrl
     });
 }
 
