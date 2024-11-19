@@ -1,12 +1,15 @@
+const express = require('express');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const cors = require('cors');
 const cron = require('node-cron');
 
-// Enable CORS middleware
-const enableCors = cors({ origin: '*' });
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-// In-memory URL list
+// Middleware to parse JSON bodies
+app.use(express.json());
+
+// In-memory URL list (to be scraped)
 const urlList = [];
 
 // Function to scrape a website
@@ -15,7 +18,7 @@ async function scrapeWebsite(url) {
         // Fetch the HTML of the provided website
         const { data } = await axios.get(url);
 
-        // Optionally, load the HTML using cheerio for parsing/manipulating the HTML
+        // Load the HTML using Cheerio for parsing/manipulating the HTML
         const $ = cheerio.load(data);
 
         // Extract the title of the page as an example
@@ -23,20 +26,20 @@ async function scrapeWebsite(url) {
 
         // Prepare email content
         const toEmail = 'litnitimounsef@gmail.com'; // Replace with actual recipient email
-        const subject = 'Scraped Data';
-        const message = 
+        const subject = `Scraped Data from ${url}`;
+        const message = `
             <h1>${pageTitle}</h1>
             <p>Scraped HTML content:</p>
             <pre>${data}</pre>
-        ;
+        `;
         const isHtml = true;
 
         // Send the email
         await sendEmail(toEmail, subject, message, isHtml);
 
-        console.log(Scraping successful for URL: ${url});
+        console.log(`Scraping and email sent successfully for URL: ${url}`);
     } catch (error) {
-        console.error('Error fetching the URL:', error.message);
+        console.error(`Error scraping URL (${url}):`, error.message);
     }
 }
 
@@ -47,10 +50,10 @@ async function sendEmail(toEmail, subject, message, isHtml) {
             to: toEmail,
             subject: subject,
             message: message,
-            isHtml: isHtml
+            isHtml: isHtml,
         }, {
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
             }
         });
 
@@ -64,30 +67,40 @@ async function sendEmail(toEmail, subject, message, isHtml) {
     }
 }
 
-// Function to handle incoming requests
-async function handleRequest(req, res) {
-    const websiteUrl = req.query.url;
+// API endpoint to add a new URL to the list
+app.post('/add-url', (req, res) => {
+    const { url } = req.body;
 
-    if (!websiteUrl) {
-        return res.status(400).json({ message: 'Please provide a valid URL as a query parameter (e.g., ?url=https://example.com)' });
+    if (!url) {
+        return res.status(400).json({ message: 'Please provide a valid URL in the request body.' });
     }
 
-    // Add the URL to the list
-    urlList.push(websiteUrl);
+    // Add the URL to the list if not already present
+    if (!urlList.includes(url)) {
+        urlList.push(url);
+        console.log(`URL added: ${url}`);
+    }
 
     res.status(200).json({
         message: 'URL added successfully!',
-        url: websiteUrl
+        url: url,
     });
-}
+});
 
 // Schedule the scraping function to run every 15 minutes
 cron.schedule('*/15 * * * *', () => {
     console.log('Running scheduled task...');
-    urlList.forEach(url => {
+    urlList.forEach((url) => {
         scrapeWebsite(url);
     });
 });
 
-// Export the function for Vercel with CORS enabled
-module.exports = (req, res) => enableCors(req, res, () => handleRequest(req, res));
+// Default route
+app.get('/', (req, res) => {
+    res.send('Loop Scraper API is running. Use POST /add-url to add URLs for scraping.');
+});
+
+// Start the server
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
